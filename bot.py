@@ -1,14 +1,12 @@
 from enum import Enum
 from typing import Optional
-from constants import BOT_TOKEN
+from constants import BOT_TOKEN, MY_GUILD
 
 import discord
 from discord import app_commands
 
 import math
 import random
-
-MY_GUILD = discord.Object(id=854696736328253440)  # replace with your guild id
 
 
 class Difficulty(Enum):
