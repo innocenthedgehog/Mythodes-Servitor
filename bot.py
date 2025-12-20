@@ -7,6 +7,7 @@ from discord import app_commands
 
 import math
 import random
+import re
 
 
 class Difficulty(Enum):
@@ -41,6 +42,31 @@ class MyClient(discord.Client):
         self.tree.copy_global_to(guild=MY_GUILD)
         await self.tree.sync(guild=MY_GUILD)
 
+
+def roll_dice(formula: str):
+    formula = formula.replace(" ", "").lower()
+    pattern = r'([+-]?)(\d*d\d+|\d+)'
+    matches = re.findall(pattern, formula)
+
+    results = []
+    total = 0
+
+    for sign, term in matches:
+        multiplier = -1 if sign == "-" else 1
+        if 'd' in term:
+            parts = term.split('d')
+            num_dice = int(parts[0]) if parts[0] else 1
+            sides = int(parts[1])
+            rolls = [random.randint(1, sides) for _ in range(num_dice)]
+            term_total = sum(rolls) * multiplier
+            total += term_total
+            results.append({"term": term, "rolls": rolls, "total": term_total})
+        else:
+            val = int(term) * multiplier
+            total += val
+            results.append({"term": "modifier", "value": val})
+
+    return {"total": total, "breakdown": results}
 
 def resolve_test(skill_rating: int, roll: int = None, tiered: bool = False) -> dict:
     if roll is None:
@@ -205,6 +231,16 @@ Your oponent rolled: **{opponent_results['roll']}** with a target of **{opponent
 
     await interaction.response.send_message(final_output)
 
+@client.tree.command()
+@app_commands.describe(
+    damage_roll='Your damage roll',
+    hits='The number of hits')
+async def damage(
+    interaction: discord.Interaction,
+    damage_roll: str,
+    hits: Optional[int] = 1):
+    result = roll_dice(damage_roll)
+    await interaction.response.send_message(f"{result['breakdown']}\nTotal: {result['total']}")
 
 if __name__ == '__main__':
     client.run(BOT_TOKEN)
