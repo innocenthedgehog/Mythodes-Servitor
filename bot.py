@@ -1,3 +1,4 @@
+from collections import defaultdict
 from enum import Enum
 from typing import Optional
 from constants import BOT_TOKEN, MY_GUILD
@@ -29,6 +30,30 @@ class Tier(Enum):
     SUPERB_SUCCESS = 5
     GRAND_SUCCESS = 6
     CRITICAL_SUCCESS = 7
+
+class SpeciesLocationTable:
+    def __init__(self, name, die_size=20):
+        self.name = name
+        self.die_size = die_size
+        self._ranges = []
+
+    def add_location(self, start, end, location):
+        self._ranges.append((start, end, location))
+
+    def get_location(self, roll):
+        for start, end, loc_name in self._ranges:
+            if start <= roll <= end:
+                return loc_name
+        return "Unknown"
+
+human = SpeciesLocationTable("Human", die_size=20)
+human.add_location(1, 3, "Right Leg")
+human.add_location(4, 6, "Left Leg")
+human.add_location(7, 9, "Abdomen")
+human.add_location(10, 12, "Chest")
+human.add_location(13, 15, "Right Arm")
+human.add_location(16, 18, "Left Arm")
+human.add_location(19, 20, "Head")
 
 class MyClient(discord.Client):
     # Suppress error on the User attribute being None since it fills up later
@@ -67,6 +92,11 @@ def roll_dice(formula: str):
             results.append({"term": "modifier", "value": val})
 
     return {"total": total, "breakdown": results}
+
+def get_hit_location():
+    roll = random.randint(1,20)
+    if roll < 3:
+        return 'right_leg'
 
 def resolve_test(skill_rating: int, roll: int = None, tiered: bool = False) -> dict:
     if roll is None:
@@ -234,13 +264,37 @@ Your oponent rolled: **{opponent_results['roll']}** with a target of **{opponent
 @client.tree.command()
 @app_commands.describe(
     damage_roll='Your damage roll',
-    hits='The number of hits')
+    hits='The number of hits',
+    species_placeholder='The target\'s species')
 async def damage(
     interaction: discord.Interaction,
     damage_roll: str,
-    hits: Optional[int] = 1):
-    result = roll_dice(damage_roll)
-    await interaction.response.send_message(f"{result['breakdown']}\nTotal: {result['total']}")
+    hits: Optional[int] = 1,
+    species_placeholder: Optional[str] = 'human'):
+    totals = []
+    damage_tracker = defaultdict(int) 
+    species_table = human
+
+    output = f"{interaction.user.name} rolled {hits} hit(s) of: `{damage_roll}`\n\n"
+    for hit in range(hits):
+        result = roll_dice(damage_roll)
+        loc_roll = random.randint(1, species_table.die_size)
+        location = species_table.get_location(loc_roll)
+        damage_tracker[location] += result['total']
+    
+        all_random_numbers = [str(roll) for entry in result['breakdown'] if 'rolls' in entry for roll in entry['rolls']]
+        output += f"- Hit {hit + 1}: Rolled {', '.join(all_random_numbers)} ({location})\n"
+
+        #totals.append(str(result['total']))
+    output += "\nTotal Damage:\n"
+
+    damage_tracker = dict(damage_tracker)
+    for location, total in damage_tracker.items():
+        output += f"- {location}: **{total}**\n"
+    
+    #output += f"\nTotals: **{", ".join(totals)}**"
+    
+    await interaction.response.send_message(output)
 
 if __name__ == '__main__':
     client.run(BOT_TOKEN)
